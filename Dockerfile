@@ -8,6 +8,7 @@ COPY package.json package-lock.json ./
 
 # Install dependencies
 RUN npm ci --only=production
+RUN npm install -g vite
 
 # Copy source code
 COPY . .
