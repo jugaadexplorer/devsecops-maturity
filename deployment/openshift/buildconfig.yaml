@@ -1,0 +1,43 @@
+# OpenShift BuildConfig for DevOps Assessment Portal
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: devops-assessment-portal-bc
+  namespace: devops-assessment-portal
+  labels:
+    app: devops-assessment-portal
+spec:
+  triggers:
+  - type: ConfigChange
+  - type: ImageChange
+    imageChange: {}
+  - type: GitHub
+    github:
+      secret: github-webhook-secret
+  - type: Generic
+    generic:
+      secret: generic-webhook-secret
+  source:
+    type: Git
+    git:
+      uri: https://your-git-repo-url/devops-assessment-portal
+      ref: main
+    contextDir: /
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+      env:
+      - name: NODE_ENV
+        value: production
+  output:
+    to:
+      kind: ImageStreamTag
+      name: devops-assessment-portal:latest
+  resources:
+    limits:
+      cpu: "1"
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
