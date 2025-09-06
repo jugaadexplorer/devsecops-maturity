@@ -1,0 +1,144 @@
+# Default values for DevOps Assessment Portal Helm chart
+replicaCount: 3
+
+image:
+  repository: your-registry/devops-assessment-portal
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets: 
+  - name: registry-secret
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+    - ALL
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+  hosts:
+    - host: devops-assessment.yourdomain.com
+      paths:
+        - path: /(.*)
+          pathType: Prefix
+  tls:
+   - secretName: devops-assessment-portal-tls
+     hosts:
+       - devops-assessment.yourdomain.com
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - devops-assessment-portal
+        topologyKey: kubernetes.io/hostname
+
+# Environment variables
+env:
+  - name: NODE_ENV
+    value: "production"
+  - name: PORT
+    value: "3000"
+
+# ConfigMap data
+config:
+  app:
+    name: "DevOps Assessment Portal"
+    version: "1.0.0"
+    port: 3000
+  environment: "production"
+  logging:
+    level: "info"
+  security:
+    enabled: true
+    sessionTimeout: 3600
+
+# Network Policy
+networkPolicy:
+  enabled: true
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: ingress-nginx
+      ports:
+      - protocol: TCP
+        port: 3000
+  egress:
+    - to: []
+      ports:
+      - protocol: UDP
+        port: 53
+    - to: []
+      ports:
+      - protocol: TCP
+        port: 443
+
+# Health checks
+healthcheck:
+  enabled: true
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 5
