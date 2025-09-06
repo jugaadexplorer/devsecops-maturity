@@ -1,0 +1,79 @@
+# ArgoCD Project for DevOps Assessment Portal
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: devops-assessment-portal-project
+  namespace: argocd
+spec:
+  description: DevOps and DevSecOps Assessment Portal Project
+  
+  # Source repositories
+  sourceRepos:
+  - 'https://your-git-repo-url/devops-assessment-portal'
+  - 'https://charts.helm.sh/stable'
+  
+  # Destination clusters and namespaces
+  destinations:
+  - namespace: devops-assessment-portal
+    server: https://kubernetes.default.svc
+  - namespace: devops-assessment-portal-staging
+    server: https://kubernetes.default.svc
+    
+  # Cluster resource allow list
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    
+  # Namespace resource allow list
+  namespaceResourceWhitelist:
+  - group: ''
+    kind: ConfigMap
+  - group: ''
+    kind: Service
+  - group: ''
+    kind: Secret
+  - group: apps
+    kind: Deployment
+  - group: apps
+    kind: ReplicaSet
+  - group: networking.k8s.io
+    kind: Ingress
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+    
+  # Roles and permissions
+  roles:
+  - name: admin
+    description: Admin privileges for DevOps Assessment Portal
+    policies:
+    - p, proj:devops-assessment-portal-project:admin, applications, *, devops-assessment-portal-project/*, allow
+    - p, proj:devops-assessment-portal-project:admin, repositories, *, *, allow
+    - p, proj:devops-assessment-portal-project:admin, certificates, *, *, allow
+    groups:
+    - devops-assessment-portal:admin
+  - name: developer
+    description: Developer access to DevOps Assessment Portal
+    policies:
+    - p, proj:devops-assessment-portal-project:developer, applications, get, devops-assessment-portal-project/*, allow
+    - p, proj:devops-assessment-portal-project:developer, applications, sync, devops-assessment-portal-project/*, allow
+    groups:
+    - devops-assessment-portal:developer
+    
+  # Sync windows
+  syncWindows:
+  - kind: allow
+    schedule: '0 9-17 * * MON-FRI'
+    duration: 8h
+    applications:
+    - devops-assessment-portal
+    manualSync: true
+  - kind: deny
+    schedule: '0 0-6 * * *'
+    duration: 6h
+    applications:
+    - devops-assessment-portal
+    manualSync: false
