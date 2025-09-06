@@ -1,0 +1,17 @@
+# Kubernetes service for DevOps Assessment Portal
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-assessment-portal-service
+  namespace: devops-assessment-portal
+  labels:
+    app: devops-assessment-portal
+spec:
+  selector:
+    app: devops-assessment-portal
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3000
+    protocol: TCP
+  type: ClusterIP
