@@ -1,0 +1,9 @@
+# Kubernetes namespace for the DevOps Assessment Portal
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: devops-assessment-portal
+  labels:
+    name: devops-assessment-portal
+    purpose: devsecops-assessment
+    environment: production
