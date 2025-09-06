@@ -1,0 +1,63 @@
+# Kubernetes deployment for DevOps Assessment Portal
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-assessment-portal
+  namespace: devops-assessment-portal
+  labels:
+    app: devops-assessment-portal
+    version: v1.0.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: devops-assessment-portal
+  template:
+    metadata:
+      labels:
+        app: devops-assessment-portal
+        version: v1.0.0
+    spec:
+      containers:
+      - name: devops-assessment-portal
+        image: your-registry/devops-assessment-portal:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        fsGroup: 1000
+      imagePullSecrets:
+      - name: registry-secret
