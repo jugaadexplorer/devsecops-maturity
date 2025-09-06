@@ -1,0 +1,20 @@
+# OpenShift Route for DevOps Assessment Portal
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: devops-assessment-portal-route
+  namespace: devops-assessment-portal
+  labels:
+    app: devops-assessment-portal
+spec:
+  host: devops-assessment.apps.your-openshift-cluster.com
+  to:
+    kind: Service
+    name: devops-assessment-portal-service
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
