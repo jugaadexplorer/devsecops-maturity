@@ -7,6 +7,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install dependencies
+RUN npm install -g vite
+RUN npm fund
 RUN npm ci --only=production
 
 # Copy source code
