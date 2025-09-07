@@ -27,4 +27,4 @@ jobs:
     - run: npm run build --if-present
     #- run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
     - run: docker build . --file Dockerfile --tag my-image-name:latest
-    - run: docker run -d my-image-name:latest
+    - run: docker run my-image-name:latest
