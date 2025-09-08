@@ -1,27 +1,8 @@
 import React, { useState } from 'react';
 import { Plus, Search, Filter, MoreVertical, GitBranch, Shield, AlertCircle, CheckCircle, Clock, Users } from 'lucide-react';
 import { NavigationView } from '../App';
-
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  status: 'not-started' | 'in-progress' | 'completed' | 'review';
-  progress: number;
-  lastAssessed: string;
-  assessor: string;
-  environment: 'dev' | 'preprod' | 'prod';
-  pillars: {
-    code: number;
-    build: number;
-    codeQuality: number;
-    security: number;
-    testing: number;
-    package: number;
-    deploy: number;
-    monitoring: number;
-  };
-}
+import { Project } from '../types/assessment';
+import { loadProjects, saveProject } from '../utils/storage';
 
 interface DashboardProps {
   onNavigate: (view: NavigationView, projectId?: string) => void;
@@ -34,130 +15,74 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
 
-  const [projects, setProjects] = useState<Project[]>([
-    {
-      id: '1',
-      name: 'E-Commerce Platform',
-      description: 'Core e-commerce application with microservices architecture',
-      status: 'in-progress',
-      progress: 65,
-      lastAssessed: '2024-01-15',
-      assessor: 'John Smith',
-      environment: 'prod',
-      pillars: {
-        code: 80,
-        build: 70,
-        codeQuality: 60,
-        security: 45,
-        testing: 75,
-        package: 85,
-        deploy: 55,
-        monitoring: 90
-      }
-    },
-    {
-      id: '2',
-      name: 'Mobile Banking API',
-      description: 'Secure banking API with OAuth2 and advanced monitoring',
-      status: 'completed',
-      progress: 100,
-      lastAssessed: '2024-01-10',
-      assessor: 'Sarah Johnson',
-      environment: 'prod',
-      pillars: {
-        code: 95,
-        build: 90,
-        codeQuality: 88,
-        security: 92,
-        testing: 85,
-        package: 90,
-        deploy: 87,
-        monitoring: 93
-      }
-    },
-    {
-      id: '3',
-      name: 'Data Analytics Pipeline',
-      description: 'Real-time data processing and analytics platform',
-      status: 'in-progress',
-      progress: 40,
-      lastAssessed: '2024-01-12',
-      assessor: 'Mike Chen',
-      environment: 'preprod',
-      pillars: {
-        code: 60,
-        build: 45,
-        codeQuality: 30,
-        security: 35,
-        testing: 50,
-        package: 40,
-        deploy: 25,
-        monitoring: 70
-      }
-    },
-    {
-      id: '4',
-      name: 'Customer Portal',
-      description: 'Self-service customer portal with integration capabilities',
-      status: 'not-started',
-      progress: 0,
-      lastAssessed: 'Never',
-      assessor: 'Not assigned',
-      environment: 'dev',
-      pillars: {
-        code: 0,
-        build: 0,
-        codeQuality: 0,
-        security: 0,
-        testing: 0,
-        package: 0,
-        deploy: 0,
-        monitoring: 0
-      }
-    }
-  ]);
+  const [projects, setProjects] = useState<Project[]>(() => loadProjects());
 
-  const getStatusIcon = (status: Project['status']) => {
+  React.useEffect(() => {
+    // Initialize with sample data if no projects exist
+    if (projects.length === 0) {
+      const sampleProjects: Project[] = [
+        {
+          id: '1',
+          name: 'E-Commerce Platform',
+          description: 'Core e-commerce application with microservices architecture',
+          createdDate: '2024-01-01',
+          lastAssessed: '2024-01-15',
+          assessmentHistory: []
+        },
+        {
+          id: '2',
+          name: 'Mobile Banking API',
+          description: 'Secure banking API with OAuth2 and advanced monitoring',
+          createdDate: '2024-01-02',
+          lastAssessed: '2024-01-10',
+          assessmentHistory: []
+        }
+      ];
+      setProjects(sampleProjects);
+      sampleProjects.forEach(saveProject);
+    }
+  }, []);
+
+  const getStatus = (project: Project): 'not-started' | 'in-progress' | 'completed' => {
+    if (!project.currentAssessment) return 'not-started';
+    return project.currentAssessment.status;
+  };
+
+  const getProgress = (project: Project): number => {
+    if (!project.currentAssessment) return 0;
+    const totalQuestions = 48; // 8 pillars × 6 questions each
+    const answeredQuestions = Object.values(project.currentAssessment.answers).filter(a => 
+      a.response !== null && a.response !== undefined
+    ).length;
+    return Math.round((answeredQuestions / totalQuestions) * 100);
+  };
+
+  const getStatusIcon = (status: 'not-started' | 'in-progress' | 'completed') => {
     switch (status) {
       case 'completed':
         return <CheckCircle className="h-5 w-5 text-green-500" />;
       case 'in-progress':
         return <Clock className="h-5 w-5 text-blue-500" />;
-      case 'review':
-        return <AlertCircle className="h-5 w-5 text-yellow-500" />;
       default:
         return <AlertCircle className="h-5 w-5 text-gray-400" />;
     }
   };
 
-  const getStatusColor = (status: Project['status']) => {
+  const getStatusColor = (status: 'not-started' | 'in-progress' | 'completed') => {
     switch (status) {
       case 'completed':
         return 'bg-green-100 text-green-800';
       case 'in-progress':
         return 'bg-blue-100 text-blue-800';
-      case 'review':
-        return 'bg-yellow-100 text-yellow-800';
       default:
         return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getEnvironmentColor = (env: Project['environment']) => {
-    switch (env) {
-      case 'prod':
-        return 'bg-red-100 text-red-800';
-      case 'preprod':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-green-100 text-green-800';
     }
   };
 
   const filteredProjects = projects.filter(project => {
     const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          project.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || project.status === filterStatus;
+    const matchesFilter = filterStatus === 'all' || getStatus(project) === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
@@ -167,33 +92,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         id: Date.now().toString(),
         name: newProjectName,
         description: newProjectDescription,
-        status: 'not-started',
-        progress: 0,
-        lastAssessed: 'Never',
-        assessor: 'Not assigned',
-        environment: 'dev',
-        pillars: {
-          code: 0,
-          build: 0,
-          codeQuality: 0,
-          security: 0,
-          testing: 0,
-          package: 0,
-          deploy: 0,
-          monitoring: 0
-        }
+        createdDate: new Date().toISOString(),
+        assessmentHistory: []
       };
       
-      setProjects([...projects, newProject]);
+      const updatedProjects = [...projects, newProject];
+      setProjects(updatedProjects);
+      saveProject(newProject);
       setNewProjectName('');
       setNewProjectDescription('');
       setShowNewProjectModal(false);
     }
   };
 
-  const calculateOverallScore = (pillars: Project['pillars']) => {
-    const scores = Object.values(pillars);
-    return Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+  const getOverallScore = (project: Project): number => {
+    return project.currentAssessment?.overallScore || 0;
   };
 
   return (
@@ -215,7 +128,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <div>
               <p className="text-sm font-medium text-gray-600">Completed</p>
               <p className="text-3xl font-bold text-green-600">
-                {projects.filter(p => p.status === 'completed').length}
+                {projects.filter(p => getStatus(p) === 'completed').length}
               </p>
             </div>
             <CheckCircle className="h-8 w-8 text-green-600" />
@@ -227,7 +140,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <div>
               <p className="text-sm font-medium text-gray-600">In Progress</p>
               <p className="text-3xl font-bold text-blue-600">
-                {projects.filter(p => p.status === 'in-progress').length}
+                {projects.filter(p => getStatus(p) === 'in-progress').length}
               </p>
             </div>
             <Clock className="h-8 w-8 text-blue-600" />
@@ -239,7 +152,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <div>
               <p className="text-sm font-medium text-gray-600">Avg Score</p>
               <p className="text-3xl font-bold text-orange-600">
-                {Math.round(projects.reduce((sum, p) => sum + calculateOverallScore(p.pillars), 0) / projects.length)}%
+                {projects.length > 0 ? Math.round(projects.reduce((sum, p) => sum + getOverallScore(p), 0) / projects.length) : 0}%
               </p>
             </div>
             <Shield className="h-8 w-8 text-orange-600" />
@@ -294,14 +207,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               <div className="flex-1">
                 <div className="flex items-center space-x-3 mb-2">
                   <h3 className="text-lg font-semibold text-gray-900">{project.name}</h3>
-                  {getStatusIcon(project.status)}
+                  {getStatusIcon(getStatus(project))}
                 </div>
                 <p className="text-gray-600 text-sm">{project.description}</p>
               </div>
               
               <div className="flex items-center space-x-2">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getEnvironmentColor(project.environment)}`}>
-                  {project.environment.toUpperCase()}
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  {project.assessmentHistory.length} Assessments
                 </span>
                 <button className="text-gray-400 hover:text-gray-600">
                   <MoreVertical className="h-4 w-4" />
@@ -312,45 +225,47 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <div className="space-y-3 mb-4">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Overall Progress</span>
-                <span className="text-sm font-medium">{project.progress}%</span>
+                <span className="text-sm font-medium">{getProgress(project)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                  style={{width: `${project.progress}%`}}
+                  style={{width: `${getProgress(project)}%`}}
                 ></div>
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-2 mb-4">
-              {Object.entries(project.pillars).map(([pillar, score]) => (
-                <div key={pillar} className="text-center">
-                  <div className="text-xs text-gray-500 capitalize mb-1">
-                    {pillar === 'codeQuality' ? 'Quality' : pillar}
+            {project.currentAssessment && (
+              <div className="grid grid-cols-4 gap-2 mb-4">
+                {Object.entries(project.currentAssessment.pillarScores).map(([pillar, score]) => (
+                  <div key={pillar} className="text-center">
+                    <div className="text-xs text-gray-500 capitalize mb-1">
+                      {pillar === 'codeQuality' ? 'Quality' : pillar}
+                    </div>
+                    <div className={`text-sm font-medium ${score >= 80 ? 'text-green-600' : score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {score}%
+                    </div>
                   </div>
-                  <div className={`text-sm font-medium ${score >= 80 ? 'text-green-600' : score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-                    {score}%
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
             
             <div className="flex items-center justify-between pt-4 border-t border-gray-100">
               <div className="flex items-center text-sm text-gray-500">
                 <Users className="h-4 w-4 mr-1" />
-                {project.assessor}
+                {project.currentAssessment?.assessor || 'Not assigned'}
               </div>
               
               <div className="flex items-center space-x-2">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                  {project.status.replace('-', ' ').toUpperCase()}
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(getStatus(project))}`}>
+                  {getStatus(project).replace('-', ' ').toUpperCase()}
                 </span>
                 
                 <button
                   onClick={() => onNavigate('assessment', project.id)}
                   className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
                 >
-                  {project.status === 'not-started' ? 'Start Assessment' : 'Continue'}
+                  {getStatus(project) === 'not-started' ? 'Start Assessment' : 'Continue'}
                 </button>
               </div>
             </div>
