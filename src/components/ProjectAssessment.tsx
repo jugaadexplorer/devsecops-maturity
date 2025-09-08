@@ -1,76 +1,185 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Upload, Check, X, ExternalLink, AlertTriangle, FileText } from 'lucide-react';
+import { ArrowLeft, Upload, Check, X, ExternalLink, AlertTriangle, FileText, Download, Trash2 } from 'lucide-react';
 import { NavigationView } from '../App';
 import { assessmentData } from '../data/assessmentData';
+import { ProjectAssessment as ProjectAssessmentType, AssessmentAnswer } from '../types/assessment';
+import { getProject, saveAssessment, saveAssessmentAnswer, fileToBase64, downloadFile } from '../utils/storage';
 
 interface ProjectAssessmentProps {
   projectId: string | null;
   onNavigate: (view: NavigationView) => void;
 }
 
-interface Answer {
-  questionId: string;
-  response: boolean | null;
-  evidence: File | null;
-  notes: string;
-}
-
 export const ProjectAssessment: React.FC<ProjectAssessmentProps> = ({ projectId, onNavigate }) => {
   const [currentPillar, setCurrentPillar] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, Answer>>({});
-  const [currentEnvironment, setCurrentEnvironment] = useState<'dev' | 'preprod' | 'prod'>('dev');
+  const [assessment, setAssessment] = useState<ProjectAssessmentType | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const pillars = assessmentData;
 
-  const handleAnswerChange = (questionId: string, response: boolean | null) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: {
-        ...prev[questionId],
-        questionId,
-        response,
-        evidence: prev[questionId]?.evidence || null,
-        notes: prev[questionId]?.notes || ''
+  React.useEffect(() => {
+    if (projectId) {
+      const project = getProject(projectId);
+      if (project) {
+        if (!project.currentAssessment) {
+          // Create new assessment
+          const newAssessment: ProjectAssessmentType = {
+            id: Date.now().toString(),
+            projectId: project.id,
+            projectName: project.name,
+            assessor: 'Current User', // In real app, get from auth
+            startDate: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+            status: 'not-started',
+            answers: {},
+            pillarScores: {
+              code: 0,
+              build: 0,
+              codeQuality: 0,
+              security: 0,
+              testing: 0,
+              package: 0,
+              deploy: 0,
+              monitoring: 0
+            },
+            overallScore: 0
+          };
+          setAssessment(newAssessment);
+          saveAssessment(newAssessment);
+        } else {
+          setAssessment(project.currentAssessment);
+        }
       }
-    }));
+    }
+  }, [projectId]);
+
+  const handleAnswerChange = (questionId: string, response: boolean | null) => {
+    if (!assessment) return;
+
+    const updatedAnswer: AssessmentAnswer = {
+      questionId,
+      response,
+      evidence: assessment.answers[questionId]?.evidence || null,
+      notes: assessment.answers[questionId]?.notes || ''
+    };
+
+    saveAssessmentAnswer(assessment.projectId, updatedAnswer);
+    
+    // Reload assessment to get updated scores
+    const project = getProject(assessment.projectId);
+    if (project?.currentAssessment) {
+      setAssessment(project.currentAssessment);
+    }
   };
 
-  const handleEvidenceUpload = (questionId: string, file: File | null) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: {
-        ...prev[questionId],
-        questionId,
-        response: prev[questionId]?.response || null,
-        evidence: file,
-        notes: prev[questionId]?.notes || ''
+  const handleEvidenceUpload = async (questionId: string, file: File | null) => {
+    if (!assessment) return;
+    
+    setIsLoading(true);
+    try {
+      let evidenceData = null;
+      
+      if (file) {
+        const base64Data = await fileToBase64(file);
+        evidenceData = {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          uploadDate: new Date().toISOString(),
+          fileData: base64Data
+        };
       }
-    }));
+
+      const updatedAnswer: AssessmentAnswer = {
+        questionId,
+        response: assessment.answers[questionId]?.response || null,
+        evidence: evidenceData,
+        notes: assessment.answers[questionId]?.notes || ''
+      };
+
+      saveAssessmentAnswer(assessment.projectId, updatedAnswer);
+      
+      // Reload assessment
+      const project = getProject(assessment.projectId);
+      if (project?.currentAssessment) {
+        setAssessment(project.currentAssessment);
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleNotesChange = (questionId: string, notes: string) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: {
-        ...prev[questionId],
-        questionId,
-        response: prev[questionId]?.response || null,
-        evidence: prev[questionId]?.evidence || null,
-        notes
-      }
-    }));
+    if (!assessment) return;
+
+    const updatedAnswer: AssessmentAnswer = {
+      questionId,
+      response: assessment.answers[questionId]?.response || null,
+      evidence: assessment.answers[questionId]?.evidence || null,
+      notes
+    };
+
+    saveAssessmentAnswer(assessment.projectId, updatedAnswer);
+    
+    // Reload assessment
+    const project = getProject(assessment.projectId);
+    if (project?.currentAssessment) {
+      setAssessment(project.currentAssessment);
+    }
+  };
+
+  const handleDownloadEvidence = (questionId: string) => {
+    if (!assessment) return;
+    
+    const answer = assessment.answers[questionId];
+    if (answer?.evidence) {
+      downloadFile(
+        answer.evidence.fileData,
+        answer.evidence.fileName,
+        answer.evidence.fileType
+      );
+    }
+  };
+
+  const handleRemoveEvidence = (questionId: string) => {
+    if (!assessment) return;
+
+    const updatedAnswer: AssessmentAnswer = {
+      questionId,
+      response: assessment.answers[questionId]?.response || null,
+      evidence: null,
+      notes: assessment.answers[questionId]?.notes || ''
+    };
+
+    saveAssessmentAnswer(assessment.projectId, updatedAnswer);
+    
+    // Reload assessment
+    const project = getProject(assessment.projectId);
+    if (project?.currentAssessment) {
+      setAssessment(project.currentAssessment);
+    }
   };
 
   const getProgressForPillar = (pillarIndex: number) => {
+    if (!assessment) return 0;
+    
     const pillar = pillars[pillarIndex];
     const pillarQuestions = pillar.questions;
-    const answeredQuestions = pillarQuestions.filter(q => answers[q.id]?.response !== undefined && answers[q.id]?.response !== null);
+    const answeredQuestions = pillarQuestions.filter(q => 
+      assessment.answers[q.id]?.response !== undefined && assessment.answers[q.id]?.response !== null
+    );
     return Math.round((answeredQuestions.length / pillarQuestions.length) * 100);
   };
 
   const getOverallProgress = () => {
+    if (!assessment) return 0;
+    
     const totalQuestions = pillars.reduce((sum, pillar) => sum + pillar.questions.length, 0);
-    const answeredQuestions = Object.values(answers).filter(a => a.response !== undefined && a.response !== null).length;
+    const answeredQuestions = Object.values(assessment.answers).filter(a => 
+      a.response !== undefined && a.response !== null
+    ).length;
     return Math.round((answeredQuestions / totalQuestions) * 100);
   };
 
@@ -107,7 +216,9 @@ export const ProjectAssessment: React.FC<ProjectAssessmentProps> = ({ projectId,
           <div className="h-6 w-px bg-gray-300"></div>
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Project Assessment</h2>
-            <p className="text-sm text-gray-600">Project ID: {projectId}</p>
+            <p className="text-sm text-gray-600">
+              {assessment ? `${assessment.projectName} - ${assessment.assessor}` : `Project ID: ${projectId}`}
+            </p>
           </div>
         </div>
         
@@ -115,16 +226,11 @@ export const ProjectAssessment: React.FC<ProjectAssessmentProps> = ({ projectId,
           <div className="text-sm text-gray-600">
             Overall Progress: <span className="font-medium">{getOverallProgress()}%</span>
           </div>
-          
-          <select
-            value={currentEnvironment}
-            onChange={(e) => setCurrentEnvironment(e.target.value as 'dev' | 'preprod' | 'prod')}
-            className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="dev">Development</option>
-            <option value="preprod">Pre-Production</option>
-            <option value="prod">Production</option>
-          </select>
+          {assessment && (
+            <div className="text-sm text-gray-600">
+              Score: <span className="font-medium text-blue-600">{assessment.overallScore}%</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -217,7 +323,7 @@ export const ProjectAssessment: React.FC<ProjectAssessmentProps> = ({ projectId,
 
           <div className="space-y-6">
             {currentPillarData.questions.map((question, index) => {
-              const answer = answers[question.id];
+              const answer = assessment?.answers[question.id];
               const hasAnswer = answer?.response !== undefined && answer?.response !== null;
               
               return (
@@ -290,27 +396,51 @@ export const ProjectAssessment: React.FC<ProjectAssessmentProps> = ({ projectId,
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Evidence/Documentation
                     </label>
-                    <div className="flex items-center space-x-3">
-                      <label className="flex items-center px-3 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                    
+                    {answer?.evidence ? (
+                      <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <FileText className="h-5 w-5 text-green-600" />
+                          <div>
+                            <p className="text-sm font-medium text-green-900">{answer.evidence.fileName}</p>
+                            <p className="text-xs text-green-600">
+                              {(answer.evidence.fileSize / 1024).toFixed(1)} KB • 
+                              Uploaded {new Date(answer.evidence.uploadDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleDownloadEvidence(question.id)}
+                            className="p-1 text-green-600 hover:text-green-800 transition-colors"
+                            title="Download file"
+                          >
+                            <Download className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleRemoveEvidence(question.id)}
+                            className="p-1 text-red-600 hover:text-red-800 transition-colors"
+                            title="Remove file"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className={`flex items-center px-3 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                         <Upload className="h-4 w-4 mr-2 text-gray-500" />
                         <span className="text-sm text-gray-700">
-                          {answer?.evidence ? answer.evidence.name : 'Upload File'}
+                          {isLoading ? 'Uploading...' : 'Upload File'}
                         </span>
                         <input
                           type="file"
                           className="hidden"
                           onChange={(e) => handleEvidenceUpload(question.id, e.target.files?.[0] || null)}
                           accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt,.md"
+                          disabled={isLoading}
                         />
                       </label>
-                      
-                      {answer?.evidence && (
-                        <div className="flex items-center text-sm text-green-600">
-                          <FileText className="h-4 w-4 mr-1" />
-                          File uploaded
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
 
                   {/* Notes */}
